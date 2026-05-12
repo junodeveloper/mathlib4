@@ -6,6 +6,7 @@ Authors: Juno Hwang
 module
 
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.DegreeSum
+public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Subgraph
 public import Mathlib.Combinatorics.SimpleGraph.DeleteEdges
 
 /-!
@@ -126,6 +127,69 @@ theorem exists_cycle_of_mem_edgeSet_of_forall_even_degree [Finite V]
   | h u v =>
       exact G.exists_cycle_of_adj_of_forall_even_degree (by simpa using he) heven
 
+/-- Deleting the edges of a walk removes from a vertex's neighbor set exactly the neighbors of
+that vertex in the walk's subgraph. -/
+theorem neighborSet_deleteEdges_walk_edges [DecidableEq V] {u : V} (p : G.Walk u u) (x : V) :
+    (G.deleteEdges p.edges.toFinset).neighborSet x =
+      G.neighborSet x \ p.toSubgraph.neighborSet x := by
+  ext y
+  simp [Subgraph.mem_neighborSet, Walk.adj_toSubgraph_iff_mem_edges]
+
+/-- The degree after deleting the edges of a walk is the original degree minus the degree in the
+walk's subgraph. -/
+theorem degree_deleteEdges_walk_edges [DecidableEq V] {u x : V} {p : G.Walk u u}
+    [Fintype (G.neighborSet x)] [Fintype (p.toSubgraph.neighborSet x)] :
+    (G.deleteEdges p.edges.toFinset).degree x = G.degree x - p.toSubgraph.degree x := by
+  rw [← card_neighborSet_eq_degree, ← card_neighborSet_eq_degree]
+  rw [← Set.toFinset_card ((G.deleteEdges p.edges.toFinset).neighborSet x),
+    ← Set.toFinset_card (G.neighborSet x)]
+  rw [show ((G.deleteEdges p.edges.toFinset).neighborSet x).toFinset =
+      (G.neighborSet x \ p.toSubgraph.neighborSet x).toFinset from Set.toFinset_inj.mpr <|
+        G.neighborSet_deleteEdges_walk_edges p x]
+  rw [Set.toFinset_diff]
+  rw [← Subgraph.finset_card_neighborSet_eq_degree]
+  exact Finset.card_sdiff_of_subset (by
+    intro y hy
+    exact Set.mem_toFinset.mpr (p.toSubgraph.neighborSet_subset x (Set.mem_toFinset.mp hy)))
+
+/-- A vertex on a cycle has degree two in the cycle's subgraph. -/
+theorem Walk.IsCycle.degree_toSubgraph_of_mem {u x : V} {p : G.Walk u u}
+    [Fintype (p.toSubgraph.neighborSet x)] (hp : p.IsCycle) (hx : x ∈ p.support) :
+    p.toSubgraph.degree x = 2 := by
+  rw [Subgraph.degree]
+  rw [← Nat.card_eq_fintype_card]
+  exact hp.ncard_neighborSet_toSubgraph_eq_two hx
+
+/-- A vertex outside a walk's support has degree zero in the walk's subgraph. -/
+theorem Walk.degree_toSubgraph_of_notMem_support {u x : V} {p : G.Walk u u}
+    [Fintype (p.toSubgraph.neighborSet x)] (hx : x ∉ p.support) :
+    p.toSubgraph.degree x = 0 :=
+  Subgraph.degree_of_notMem_verts (by simpa [Walk.mem_verts_toSubgraph] using hx)
+
+/-- Deleting the edges of a cycle preserves even degree at every vertex. -/
+theorem even_degree_deleteEdges_cycle_edges [DecidableEq V] {u x : V} {p : G.Walk u u}
+    [Fintype (G.neighborSet x)] [Finite (p.toSubgraph.neighborSet x)] (hp : p.IsCycle)
+    (hx_even : Even (G.degree x)) : Even ((G.deleteEdges p.edges.toFinset).degree x) := by
+  letI : Fintype (p.toSubgraph.neighborSet x) := Fintype.ofFinite _
+  rw [G.degree_deleteEdges_walk_edges (p := p) (x := x)]
+  by_cases hx : x ∈ p.support
+  · have hdeg : p.toSubgraph.degree x = 2 := hp.degree_toSubgraph_of_mem hx
+    rw [hdeg]
+    rw [Nat.even_sub]
+    · simpa using hx_even
+    · rw [← hdeg]
+      exact p.toSubgraph.degree_le x
+  · have hdeg : p.toSubgraph.degree x = 0 := p.degree_toSubgraph_of_notMem_support hx
+    simp [hdeg, hx_even]
+
+/-- Deleting the edges of a cycle preserves the property that every vertex has even degree. -/
+theorem forall_even_degree_deleteEdges_cycle_edges [DecidableEq V]
+    [∀ x : V, Fintype (G.neighborSet x)] {u : V} {p : G.Walk u u} (hp : p.IsCycle)
+    (heven : ∀ x, Even (G.degree x)) : ∀ x, Even ((G.deleteEdges p.edges.toFinset).degree x) := by
+  intro x
+  letI : Fintype (p.toSubgraph.neighborSet x) := (Walk.finite_neighborSet_toSubgraph p).fintype
+  exact G.even_degree_deleteEdges_cycle_edges hp (heven x)
+
 /-- Deleting the edges of a cycle decreases the number of edges. -/
 theorem card_edgeFinset_deleteEdges_cycle_lt [DecidableEq V] [Fintype G.edgeSet]
     {u : V} {p : G.Walk u u} (hp : p.IsCycle) :
@@ -147,6 +211,17 @@ theorem exists_cycle_and_card_edgeFinset_deleteEdges_lt [DecidableEq V] [Finite 
   rw [mem_edgeFinset] at he
   rcases G.exists_cycle_of_mem_edgeSet_of_forall_even_degree he heven with ⟨u, p, hp, _⟩
   exact ⟨u, p, hp, G.card_edgeFinset_deleteEdges_cycle_lt hp⟩
+
+/-- A finite graph with all degrees even and at least one edge has a cycle whose edge deletion
+strictly decreases the number of edges and preserves even degree. -/
+theorem exists_cycle_and_card_edgeFinset_deleteEdges_lt_and_forall_even_degree [DecidableEq V]
+    [Finite V] [∀ x : V, Fintype (G.neighborSet x)] [Fintype G.edgeSet]
+    (hG : G.edgeFinset.Nonempty) (heven : ∀ x, Even (G.degree x)) :
+    ∃ (u : V) (p : G.Walk u u), p.IsCycle ∧
+      (G.deleteEdges p.edges.toFinset).edgeFinset.card < G.edgeFinset.card ∧
+        ∀ x, Even ((G.deleteEdges p.edges.toFinset).degree x) := by
+  rcases G.exists_cycle_and_card_edgeFinset_deleteEdges_lt hG heven with ⟨u, p, hp, hlt⟩
+  exact ⟨u, p, hp, hlt, G.forall_even_degree_deleteEdges_cycle_edges hp heven⟩
 
 /-- In a finite graph in which every vertex has even degree, no edge is a bridge. -/
 theorem not_isBridge_of_adj_of_forall_even_degree [Finite V] [∀ x : V, Fintype (G.neighborSet x)]
