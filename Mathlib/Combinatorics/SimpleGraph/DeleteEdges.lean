@@ -6,6 +6,7 @@ Authors: Aaron Anderson, Jalex Stark, Kyle Miller, Alena Gusakov, Hunter Monroe
 module
 
 public import Mathlib.Algebra.Ring.Defs
+public import Mathlib.Algebra.Ring.Parity
 public import Mathlib.Combinatorics.SimpleGraph.Finite
 public import Mathlib.Combinatorics.SimpleGraph.Maps
 public import Mathlib.Data.Int.Cast.Basic
@@ -96,11 +97,138 @@ theorem deleteEdges_sdiff_eq_of_le {H : SimpleGraph V} (h : H ≤ G) :
 theorem edgeSet_deleteEdges (s : Set (Sym2 V)) : (G.deleteEdges s).edgeSet = G.edgeSet \ s := by
   simp [deleteEdges]
 
+/-- If a graph has finitely many edges, then deleting edges preserves this property. -/
+noncomputable instance finiteEdgeSetDeleteEdges (s : Set (Sym2 V)) [Fintype G.edgeSet] :
+    Fintype (G.deleteEdges s).edgeSet :=
+  ((Set.toFinite G.edgeSet).subset fun e h ↦ by
+    rw [edgeSet_deleteEdges] at h
+    exact h.1).fintype
+
 @[simp] theorem edgeFinset_deleteEdges [DecidableEq V] [Fintype G.edgeSet] (s : Finset (Sym2 V))
     [Fintype (G.deleteEdges s).edgeSet] :
     (G.deleteEdges s).edgeFinset = G.edgeFinset \ s := by
   ext e
   simp [edgeSet_deleteEdges]
+
+/-- Deleting a finite set of edges that contains an edge of the graph decreases the number of
+edges. -/
+theorem card_edgeFinset_deleteEdges_lt [DecidableEq V] [Fintype G.edgeSet] (s : Finset (Sym2 V))
+    [Fintype (G.deleteEdges s).edgeSet] (hs : (G.edgeFinset ∩ s).Nonempty) :
+    #(G.deleteEdges s).edgeFinset < #G.edgeFinset := by
+  rw [edgeFinset_deleteEdges]
+  rw [card_sdiff]
+  have hnon : (s ∩ G.edgeFinset).Nonempty := by simpa [inter_comm] using hs
+  have hpos_inter : 0 < #(s ∩ G.edgeFinset) := hnon.card_pos
+  have hpos_edge : 0 < #G.edgeFinset := by
+    rcases hnon with ⟨e, he⟩
+    exact card_pos.mpr ⟨e, (mem_inter.mp he).2⟩
+  exact Nat.sub_lt hpos_edge hpos_inter
+
+/-- If a graph is locally finite at `v`, then deleting edges preserves this property. -/
+noncomputable instance finiteAtDeleteEdges (s : Set (Sym2 V)) [Fintype (G.neighborSet v)] :
+    Fintype ((G.deleteEdges s).neighborSet v) :=
+  ((Set.toFinite (G.neighborSet v)).subset fun _ h ↦ h.1).fintype
+
+/-- Deleting `s(v, w)` removes exactly `w` from the neighbor set of `v`. -/
+theorem neighborSet_deleteEdges_singleton (v w : V) :
+    (G.deleteEdges {s(v, w)}).neighborSet v = G.neighborSet v \ {w} := by
+  ext x
+  simp only [mem_neighborSet, deleteEdges_adj, Set.mem_singleton_iff, Set.mem_diff]
+  constructor
+  · rintro ⟨hvx, hne⟩
+    refine ⟨hvx, ?_⟩
+    intro hxw
+    exact hne (by subst hxw; rfl)
+  · rintro ⟨hvx, hxw⟩
+    refine ⟨hvx, ?_⟩
+    intro h
+    have h' : (v = v ∧ x = w) ∨ (v = w ∧ x = v) := by
+      simpa [Sym2.rel_iff'] using Sym2.eq.mp h
+    rcases h' with ⟨_, hx⟩ | ⟨_, hx⟩
+    · exact hxw hx
+    · exact hvx.ne hx.symm
+
+/-- Deleting `s(v, w)` does not change the neighbor set of a vertex different from both `v`
+and `w`. -/
+theorem neighborSet_deleteEdges_singleton_of_ne {x v w : V} (hxv : x ≠ v) (hxw : x ≠ w) :
+    (G.deleteEdges {s(v, w)}).neighborSet x = G.neighborSet x := by
+  ext y
+  simp only [mem_neighborSet, deleteEdges_adj, Set.mem_singleton_iff]
+  constructor
+  · exact And.left
+  · intro hxy
+    refine ⟨hxy, ?_⟩
+    intro h
+    have h' : (x = v ∧ y = w) ∨ (x = w ∧ y = v) := by
+      simpa [Sym2.rel_iff'] using Sym2.eq.mp h
+    rcases h' with ⟨hx, _⟩ | ⟨hx, _⟩
+    · exact hxv hx
+    · exact hxw hx
+
+/-- Deleting an edge incident to `v` decreases the degree of `v` by one. -/
+theorem degree_deleteEdges_singleton_of_adj [Fintype (G.neighborSet v)] (hvw : G.Adj v w) :
+    (G.deleteEdges {s(v, w)}).degree v = G.degree v - 1 := by
+  classical
+  rw [← card_neighborSet_eq_degree, ← card_neighborSet_eq_degree]
+  rw [← Set.toFinset_card ((G.deleteEdges {s(v, w)}).neighborSet v),
+    ← Set.toFinset_card (G.neighborSet v)]
+  rw [show ((G.deleteEdges {s(v, w)}).neighborSet v).toFinset =
+      (G.neighborSet v \ {w}).toFinset from Set.toFinset_inj.mpr <|
+        G.neighborSet_deleteEdges_singleton v w]
+  rw [Set.toFinset_diff, Set.toFinset_singleton, Finset.card_sdiff]
+  simp [hvw]
+
+/-- Deleting `s(v, w)` does not change the degree of a vertex different from both `v` and `w`. -/
+theorem degree_deleteEdges_singleton_of_ne {x v w : V} [Fintype (G.neighborSet x)] (hxv : x ≠ v)
+    (hxw : x ≠ w) : (G.deleteEdges {s(v, w)}).degree x = G.degree x := by
+  rw [← card_neighborSet_eq_degree, ← card_neighborSet_eq_degree]
+  rw [← Set.toFinset_card ((G.deleteEdges {s(v, w)}).neighborSet x),
+    ← Set.toFinset_card (G.neighborSet x)]
+  rw [show ((G.deleteEdges {s(v, w)}).neighborSet x).toFinset =
+      (G.neighborSet x).toFinset from Set.toFinset_inj.mpr <|
+        G.neighborSet_deleteEdges_singleton_of_ne hxv hxw]
+
+/-- Deleting an edge incident to `v` flips the parity of the degree of `v`. -/
+theorem even_degree_deleteEdges_singleton_of_adj_iff [Fintype (G.neighborSet v)]
+    (hvw : G.Adj v w) : Even ((G.deleteEdges {s(v, w)}).degree v) ↔ Odd (G.degree v) := by
+  rw [G.degree_deleteEdges_singleton_of_adj hvw]
+  rw [Nat.even_sub (Nat.succ_le_of_lt hvw.degree_pos_left)]
+  simp [Nat.not_even_iff_odd]
+
+/-- Deleting an edge incident to `v` flips the parity of the degree of `v`. -/
+theorem odd_degree_deleteEdges_singleton_of_adj_iff [Fintype (G.neighborSet v)]
+    (hvw : G.Adj v w) : Odd ((G.deleteEdges {s(v, w)}).degree v) ↔ Even (G.degree v) := by
+  rw [← Nat.not_even_iff_odd]
+  rw [G.degree_deleteEdges_singleton_of_adj hvw]
+  rw [Nat.even_sub (Nat.succ_le_of_lt hvw.degree_pos_left)]
+  simp [Nat.not_even_iff_odd]
+
+/-- If `v` has even degree, then deleting an edge incident to `v` makes its degree odd. -/
+theorem odd_degree_deleteEdges_singleton_of_adj [Fintype (G.neighborSet v)] (hvw : G.Adj v w)
+    (hv : Even (G.degree v)) : Odd ((G.deleteEdges {s(v, w)}).degree v) :=
+  (G.odd_degree_deleteEdges_singleton_of_adj_iff hvw).mpr hv
+
+/-- Deleting `s(v, w)` does not change the parity of the degree of a vertex different from both
+`v` and `w`. -/
+theorem even_degree_deleteEdges_singleton_of_ne_iff {x v w : V} [Fintype (G.neighborSet x)]
+    (hxv : x ≠ v) (hxw : x ≠ w) :
+    Even ((G.deleteEdges {s(v, w)}).degree x) ↔ Even (G.degree x) := by
+  rw [G.degree_deleteEdges_singleton_of_ne hxv hxw]
+
+/-- Deleting `s(v, w)` does not change the parity of the degree of a vertex different from both
+`v` and `w`. -/
+theorem odd_degree_deleteEdges_singleton_of_ne_iff {x v w : V} [Fintype (G.neighborSet x)]
+    (hxv : x ≠ v) (hxw : x ≠ w) :
+    Odd ((G.deleteEdges {s(v, w)}).degree x) ↔ Odd (G.degree x) := by
+  rw [← Nat.not_even_iff_odd, ← Nat.not_even_iff_odd]
+  rw [G.degree_deleteEdges_singleton_of_ne hxv hxw]
+
+/-- If `x` is different from both endpoints, then deleting `s(v, w)` preserves even degree at
+`x`. -/
+theorem even_degree_deleteEdges_singleton_of_ne {x v w : V} [Fintype (G.neighborSet x)]
+    (hxv : x ≠ v) (hxw : x ≠ w) (hx : Even (G.degree x)) :
+    Even ((G.deleteEdges {s(v, w)}).degree x) :=
+  (G.even_degree_deleteEdges_singleton_of_ne_iff hxv hxw).mpr hx
 
 @[simp] lemma deleteEdges_sup (G H : SimpleGraph V) (s : Set (Sym2 V)) :
     (G ⊔ H).deleteEdges s = G.deleteEdges s ⊔ H.deleteEdges s := sup_sdiff
