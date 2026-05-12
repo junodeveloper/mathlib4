@@ -24,6 +24,12 @@ namespace SimpleGraph
 
 variable {V : Type*} {G : SimpleGraph V} {u v x : V}
 
+/-- A list of edge sets coming from cycles of `G`, pairwise edge-disjoint and covering all edges. -/
+def IsCycleDecomposition [DecidableEq V] (G : SimpleGraph V) [Fintype G.edgeSet]
+    (cycles : List (Finset (Sym2 V))) : Prop :=
+  (∀ c ∈ cycles, ∃ (u : V) (p : G.Walk u u), p.IsCycle ∧ c = p.edges.toFinset) ∧
+    cycles.Pairwise Disjoint ∧ cycles.foldr (· ∪ ·) ∅ = G.edgeFinset
+
 /-- If all vertices of `G` have even degree, then after deleting `s(u, v)`, any odd-degree
 vertex different from `u` must be `v`. -/
 theorem eq_right_of_ne_left_of_odd_degree_deleteEdges_singleton_of_forall_even_degree
@@ -222,6 +228,66 @@ theorem exists_cycle_and_card_edgeFinset_deleteEdges_lt_and_forall_even_degree [
         ∀ x, Even ((G.deleteEdges p.edges.toFinset).degree x) := by
   rcases G.exists_cycle_and_card_edgeFinset_deleteEdges_lt hG heven with ⟨u, p, hp, hlt⟩
   exact ⟨u, p, hp, hlt, G.forall_even_degree_deleteEdges_cycle_edges hp heven⟩
+
+/-- A finite graph in which every vertex has even degree has an edge-disjoint cycle
+decomposition. -/
+theorem exists_isCycleDecomposition_of_forall_even_degree [DecidableEq V] [Finite V]
+    [∀ x : V, Fintype (G.neighborSet x)] [Fintype G.edgeSet]
+    (heven : ∀ x, Even (G.degree x)) :
+    ∃ cycles : List (Finset (Sym2 V)), G.IsCycleDecomposition cycles := by
+  classical
+  let P : ℕ → Prop := fun n =>
+    ∀ (G : SimpleGraph V) (hfin : ∀ x : V, Fintype (G.neighborSet x))
+      (hfed : Fintype G.edgeSet),
+      letI : ∀ x : V, Fintype (G.neighborSet x) := hfin
+      letI : Fintype G.edgeSet := hfed
+      G.edgeFinset.card = n → (∀ x, Even (G.degree x)) →
+        ∃ cycles : List (Finset (Sym2 V)), G.IsCycleDecomposition cycles
+  have hP : ∀ n, (∀ m < n, P m) → P n := by
+    intro n ih G hfin hfed hcard heven
+    letI : ∀ x : V, Fintype (G.neighborSet x) := hfin
+    letI : Fintype G.edgeSet := hfed
+    by_cases hG : G.edgeFinset.Nonempty
+    · rcases G.exists_cycle_and_card_edgeFinset_deleteEdges_lt_and_forall_even_degree hG heven with
+        ⟨u, p, hp, hlt, heven'⟩
+      let H := G.deleteEdges p.edges.toFinset
+      have hfedH : Fintype H.edgeSet := inferInstance
+      have hcardH : H.edgeFinset.card = H.edgeFinset.card := rfl
+      rcases ih H.edgeFinset.card (by rw [← hcard]; simpa [H] using hlt) H
+          (fun x => finiteAtDeleteEdges (G := G) (v := x) (p.edges.toFinset : Set (Sym2 V)))
+          hfedH hcardH (by simpa [H] using heven') with
+        ⟨cycles, hcycles, hpair, hcover⟩
+      refine ⟨p.edges.toFinset :: cycles, ?_, ?_, ?_⟩
+      · intro c hc
+        simp only [List.mem_cons] at hc
+        rcases hc with rfl | hc
+        · exact ⟨u, p, hp, rfl⟩
+        · rcases hcycles c hc with ⟨w, q, hq, rfl⟩
+          refine ⟨w, q.mapLe (G.deleteEdges_le p.edges.toFinset), hq.mapLe _, ?_⟩
+          simp [q.edges_mapLe_eq_edges]
+      · simp only [List.pairwise_cons]
+        constructor
+        · intro c hc
+          rcases hcycles c hc with ⟨w, q, _hq, rfl⟩
+          rw [Finset.disjoint_left]
+          intro e hep heq
+          have heH : e ∈ H.edgeFinset := q.edges_toFinset_subset_edgeFinset heq
+          rw [edgeFinset_deleteEdges] at heH
+          exact (Finset.mem_sdiff.mp heH).2 hep
+        · exact hpair
+      · simp only [List.foldr_cons]
+        rw [hcover]
+        change p.edges.toFinset ∪ H.edgeFinset = G.edgeFinset
+        simp only [H, edgeFinset_deleteEdges]
+        exact Finset.union_sdiff_of_subset p.edges_toFinset_subset_edgeFinset
+    · refine ⟨[], ?_, ?_, ?_⟩
+      · intro c hc
+        simp at hc
+      · simp
+      · rw [Finset.not_nonempty_iff_eq_empty.mp hG]
+        rfl
+  have hmain : P G.edgeFinset.card := Nat.strongRecOn G.edgeFinset.card hP
+  exact hmain G (fun x => inferInstance) inferInstance rfl heven
 
 /-- In a finite graph in which every vertex has even degree, no edge is a bridge. -/
 theorem not_isBridge_of_adj_of_forall_even_degree [Finite V] [∀ x : V, Fintype (G.neighborSet x)]
