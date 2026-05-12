@@ -302,6 +302,29 @@ lemma IsCycle.three_le_length {v : V} {p : G.Walk v v} (hp : p.IsCycle) : 3 ≤ 
   | .cons _ (.cons _ .nil) => simp at hp
   | .cons _ (.cons _ (.cons _ _)) => simp_rw [SimpleGraph.Walk.length_cons]; lia
 
+lemma IsCycle.edgeSet_nonempty {v : V} {p : G.Walk v v} (hp : p.IsCycle) :
+    p.edgeSet.Nonempty := by
+  have hlen : 0 < p.edges.length := by
+    rw [p.length_edges]
+    exact Nat.lt_of_lt_of_le (by decide : 0 < 3) hp.three_le_length
+  rw [List.length_pos_iff_exists_mem] at hlen
+  simpa [edgeSet] using hlen
+
+lemma IsCycle.edges_toFinset_nonempty [DecidableEq V] {v : V} {p : G.Walk v v}
+    (hp : p.IsCycle) : p.edges.toFinset.Nonempty := by
+  rcases hp.edgeSet_nonempty with ⟨e, he⟩
+  exact ⟨e, by simpa [edgeSet] using he⟩
+
+lemma edges_toFinset_subset_edgeFinset [DecidableEq V] [Fintype G.edgeSet] (p : G.Walk u v) :
+    p.edges.toFinset ⊆ G.edgeFinset := by
+  intro e he
+  rw [mem_edgeFinset]
+  exact p.edges_subset_edgeSet (by simpa using he)
+
+lemma IsCycle.card_edges_toFinset_pos [DecidableEq V] {v : V} {p : G.Walk v v} (hp : p.IsCycle) :
+    0 < p.edges.toFinset.card :=
+  hp.edges_toFinset_nonempty.card_pos
+
 lemma not_nil_of_isCycle_cons {p : G.Walk u v} {h : G.Adj v u} (hc : (Walk.cons h p).IsCycle) :
     ¬ p.Nil := by
   have := Walk.length_cons _ _ ▸ Walk.IsCycle.three_le_length hc
