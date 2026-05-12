@@ -128,14 +128,25 @@ theorem exists_cycle_of_mem_edgeSet_of_forall_even_degree [Finite V]
 
 /-- Deleting the edges of a cycle decreases the number of edges. -/
 theorem card_edgeFinset_deleteEdges_cycle_lt [DecidableEq V] [Fintype G.edgeSet]
-    {u : V} {p : G.Walk u u} [Fintype (G.deleteEdges p.edges.toFinset).edgeSet]
-    (hp : p.IsCycle) :
+    {u : V} {p : G.Walk u u} (hp : p.IsCycle) :
     (G.deleteEdges p.edges.toFinset).edgeFinset.card < G.edgeFinset.card := by
   apply G.card_edgeFinset_deleteEdges_lt p.edges.toFinset
   rcases hp.edges_toFinset_nonempty with ⟨e, he⟩
   exact ⟨e, by
     rw [Finset.mem_inter]
     exact ⟨p.edges_toFinset_subset_edgeFinset he, he⟩⟩
+
+/-- A finite graph with all degrees even and at least one edge has a cycle whose edge deletion
+strictly decreases the number of edges. -/
+theorem exists_cycle_and_card_edgeFinset_deleteEdges_lt [DecidableEq V] [Finite V]
+    [∀ x : V, Fintype (G.neighborSet x)] [Fintype G.edgeSet]
+    (hG : G.edgeFinset.Nonempty) (heven : ∀ x, Even (G.degree x)) :
+    ∃ (u : V) (p : G.Walk u u), p.IsCycle ∧
+      (G.deleteEdges p.edges.toFinset).edgeFinset.card < G.edgeFinset.card := by
+  rcases hG with ⟨e, he⟩
+  rw [mem_edgeFinset] at he
+  rcases G.exists_cycle_of_mem_edgeSet_of_forall_even_degree he heven with ⟨u, p, hp, _⟩
+  exact ⟨u, p, hp, G.card_edgeFinset_deleteEdges_cycle_lt hp⟩
 
 /-- In a finite graph in which every vertex has even degree, no edge is a bridge. -/
 theorem not_isBridge_of_adj_of_forall_even_degree [Finite V] [∀ x : V, Fintype (G.neighborSet x)]
