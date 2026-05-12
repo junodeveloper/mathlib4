@@ -30,6 +30,43 @@ def IsCycleDecomposition [DecidableEq V] (G : SimpleGraph V) [Fintype G.edgeSet]
   (∀ c ∈ cycles, ∃ (u : V) (p : G.Walk u u), p.IsCycle ∧ c = p.edges.toFinset) ∧
     cycles.Pairwise Disjoint ∧ cycles.foldr (· ∪ ·) ∅ = G.edgeFinset
 
+/-- Every edge of a graph appears in some member of any cycle decomposition of the graph. -/
+theorem IsCycleDecomposition.exists_mem_of_mem_edgeFinset [DecidableEq V] [Fintype G.edgeSet]
+    {cycles : List (Finset (Sym2 V))} (hD : G.IsCycleDecomposition cycles) {e : Sym2 V}
+    (he : e ∈ G.edgeFinset) : ∃ c ∈ cycles, e ∈ c := by
+  rcases hD with ⟨_hcycles, _hpair, hcover⟩
+  have he' : e ∈ cycles.foldr (· ∪ ·) ∅ := by simpa [hcover] using he
+  have hmem : ∀ l : List (Finset (Sym2 V)), e ∈ l.foldr (· ∪ ·) ∅ → ∃ c ∈ l, e ∈ c := by
+    intro l hl
+    induction l with
+    | nil => simp at hl
+    | cons c cs ih =>
+        simp only [List.foldr_cons, Finset.mem_union] at hl
+        rcases hl with hec | hecs
+        · exact ⟨c, by simp, hec⟩
+        · rcases ih hecs with ⟨d, hd, hed⟩
+          exact ⟨d, by simp [hd], hed⟩
+  exact hmem cycles he'
+
+/-- Every edge of a graph appears in a cycle from any cycle decomposition of the graph. -/
+theorem IsCycleDecomposition.exists_cycle_of_mem_edgeFinset [DecidableEq V] [Fintype G.edgeSet]
+    {cycles : List (Finset (Sym2 V))} (hD : G.IsCycleDecomposition cycles) {e : Sym2 V}
+    (he : e ∈ G.edgeFinset) :
+    ∃ c, c ∈ cycles ∧ e ∈ c ∧
+      ∃ (u : V) (p : G.Walk u u), p.IsCycle ∧ c = p.edges.toFinset := by
+  rcases hD with ⟨hcycles, hpair, hcover⟩
+  have hD' : G.IsCycleDecomposition cycles := ⟨hcycles, hpair, hcover⟩
+  rcases hD'.exists_mem_of_mem_edgeFinset he with ⟨c, hc, hec⟩
+  exact ⟨c, hc, hec, hcycles c hc⟩
+
+/-- Distinct members of a cycle decomposition are edge-disjoint. -/
+theorem IsCycleDecomposition.disjoint_of_ne [DecidableEq V] [Fintype G.edgeSet]
+    {cycles : List (Finset (Sym2 V))} (hD : G.IsCycleDecomposition cycles)
+    {c d : Finset (Sym2 V)} (hc : c ∈ cycles) (hd : d ∈ cycles) (hcd : c ≠ d) :
+    Disjoint c d := by
+  rcases hD with ⟨_hcycles, hpair, _hcover⟩
+  exact List.Pairwise.forall Disjoint.symm hpair hc hd hcd
+
 /-- If all vertices of `G` have even degree, then after deleting `s(u, v)`, any odd-degree
 vertex different from `u` must be `v`. -/
 theorem eq_right_of_ne_left_of_odd_degree_deleteEdges_singleton_of_forall_even_degree
