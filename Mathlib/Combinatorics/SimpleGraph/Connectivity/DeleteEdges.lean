@@ -119,6 +119,26 @@ theorem odd_degrees_deleteEdges_singleton_of_adj_of_forall_even_degree
   · intro x hxu hxv
     exact G.even_degree_deleteEdges_singleton_of_ne hxu hxv (heven x)
 
+/-- If all vertices of `G` have even degree, then after deleting an existing edge `uv`, the
+odd-degree vertices are exactly the endpoints. -/
+theorem odd_degree_set_deleteEdges_singleton_of_adj_of_forall_even_degree
+    [∀ y : V, Fintype (G.neighborSet y)] (hGuv : G.Adj u v) (heven : ∀ y, Even (G.degree y)) :
+    {x | Odd ((G.deleteEdges {s(u, v)}).degree x)} = ({u, v} : Set V) := by
+  ext x
+  constructor
+  · intro hx
+    by_cases hxu : x = u
+    · simp [hxu]
+    · have hxv : x = v :=
+        G.eq_right_of_ne_left_of_odd_degree_deleteEdges_singleton_of_forall_even_degree hxu hx
+          heven
+      simp [hxv]
+  · intro hx
+    rw [Set.mem_insert_iff, Set.mem_singleton_iff] at hx
+    rcases hx with rfl | rfl
+    · exact (G.odd_degrees_deleteEdges_singleton_of_adj_of_forall_even_degree hGuv heven).1
+    · exact (G.odd_degrees_deleteEdges_singleton_of_adj_of_forall_even_degree hGuv heven).2.1
+
 namespace ConnectedComponent
 
 variable {G : SimpleGraph V} {u v : V}
