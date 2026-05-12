@@ -97,6 +97,13 @@ theorem deleteEdges_sdiff_eq_of_le {H : SimpleGraph V} (h : H ≤ G) :
 theorem edgeSet_deleteEdges (s : Set (Sym2 V)) : (G.deleteEdges s).edgeSet = G.edgeSet \ s := by
   simp [deleteEdges]
 
+/-- If a graph has finitely many edges, then deleting edges preserves this property. -/
+noncomputable instance finiteEdgeSetDeleteEdges (s : Set (Sym2 V)) [Fintype G.edgeSet] :
+    Fintype (G.deleteEdges s).edgeSet :=
+  ((Set.toFinite G.edgeSet).subset fun e h ↦ by
+    rw [edgeSet_deleteEdges] at h
+    exact h.1).fintype
+
 @[simp] theorem edgeFinset_deleteEdges [DecidableEq V] [Fintype G.edgeSet] (s : Finset (Sym2 V))
     [Fintype (G.deleteEdges s).edgeSet] :
     (G.deleteEdges s).edgeFinset = G.edgeFinset \ s := by
