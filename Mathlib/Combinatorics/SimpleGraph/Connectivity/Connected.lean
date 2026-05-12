@@ -570,6 +570,9 @@ lemma mem_supp_congr_adj {v w : V} (c : G.ConnectedComponent) (hadj : G.Adj v w)
   · exact hadj.symm
   · exact hadj
 
+lemma neighborSet_subset_supp {v : V} (c : G.ConnectedComponent) (hv : v ∈ c.supp) :
+    G.neighborSet v ⊆ c.supp := fun _ hw ↦ (c.mem_supp_congr_adj hw).mp hv
+
 theorem connectedComponentMk_mem {v : V} : v ∈ G.connectedComponentMk v :=
   rfl
 
@@ -643,6 +646,29 @@ def toSimpleGraph_hom {G : SimpleGraph V} (C : G.ConnectedComponent) : C.toSimpl
 
 lemma toSimpleGraph_hom_apply {G : SimpleGraph V} (C : G.ConnectedComponent) (u : C) :
     C.toSimpleGraph_hom u = u.val := rfl
+
+/-- If `G` is locally finite at `v`, then the connected component of `v` is locally finite
+at `v`. -/
+noncomputable instance finiteAt_toSimpleGraph {G : SimpleGraph V} (C : G.ConnectedComponent)
+    (v : C) [Fintype (G.neighborSet v)] : Fintype (C.toSimpleGraph.neighborSet v) := by
+  rw [toSimpleGraph, neighborSet_induce]
+  exact ((Set.toFinite (G.neighborSet v)).preimage_embedding (Function.Embedding.subtype _)).fintype
+
+/-- The degree of a vertex in its connected component is its degree in the original graph. -/
+theorem degree_toSimpleGraph {G : SimpleGraph V} (C : G.ConnectedComponent) (v : C)
+    [Fintype (G.neighborSet v)] : C.toSimpleGraph.degree v = G.degree v := by
+  rw [← card_neighborSet_eq_degree, ← card_neighborSet_eq_degree]
+  exact Fintype.card_congr
+    { toFun := fun w ↦ ⟨(w : C), w.prop⟩
+      invFun := fun w ↦ ⟨⟨w, C.neighborSet_subset_supp v.prop w.prop⟩, w.prop⟩
+      left_inv := by
+        intro w
+        ext
+        rfl
+      right_inv := by
+        intro w
+        ext
+        rfl }
 
 lemma toSimpleGraph_adj {G : SimpleGraph V} (C : G.ConnectedComponent) {u v : V} (hu : u ∈ C)
     (hv : v ∈ C) : C.toSimpleGraph.Adj ⟨u, hu⟩ ⟨v, hv⟩ ↔ G.Adj u v := by
