@@ -67,6 +67,19 @@ theorem IsCycleDecomposition.disjoint_of_ne [DecidableEq V] [Fintype G.edgeSet]
   rcases hD with ⟨_hcycles, hpair, _hcover⟩
   exact List.Pairwise.forall Disjoint.symm hpair hc hd hcd
 
+/-- Every edge of a graph appears in a unique member of any cycle decomposition of the graph. -/
+theorem IsCycleDecomposition.exists_unique_mem_of_mem_edgeFinset [DecidableEq V]
+    [Fintype G.edgeSet] {cycles : List (Finset (Sym2 V))} (hD : G.IsCycleDecomposition cycles)
+    {e : Sym2 V} (he : e ∈ G.edgeFinset) :
+    ∃! c : Finset (Sym2 V), c ∈ cycles ∧ e ∈ c := by
+  rcases hD.exists_mem_of_mem_edgeFinset he with ⟨c, hc, hec⟩
+  refine ⟨c, ⟨hc, hec⟩, ?_⟩
+  intro d hd
+  by_contra hdc
+  have hdisj : Disjoint c d := hD.disjoint_of_ne hc hd.1 (Ne.symm hdc)
+  rw [Finset.disjoint_left] at hdisj
+  exact hdisj hec hd.2
+
 /-- If all vertices of `G` have even degree, then after deleting `s(u, v)`, any odd-degree
 vertex different from `u` must be `v`. -/
 theorem eq_right_of_ne_left_of_odd_degree_deleteEdges_singleton_of_forall_even_degree
@@ -325,6 +338,16 @@ theorem exists_isCycleDecomposition_of_forall_even_degree [DecidableEq V] [Finit
         rfl
   have hmain : P G.edgeFinset.card := Nat.strongRecOn G.edgeFinset.card hP
   exact hmain G (fun x => inferInstance) inferInstance rfl heven
+
+/-- In a finite graph in which every vertex has even degree, every edge of `G.edgeFinset` lies on a
+cycle. -/
+theorem exists_cycle_of_mem_edgeFinset_of_forall_even_degree [DecidableEq V] [Finite V]
+    [∀ x : V, Fintype (G.neighborSet x)] [Fintype G.edgeSet]
+    (heven : ∀ x, Even (G.degree x)) {e : Sym2 V} (he : e ∈ G.edgeFinset) :
+    ∃ (u : V) (p : G.Walk u u), p.IsCycle ∧ e ∈ p.edges.toFinset := by
+  rcases G.exists_isCycleDecomposition_of_forall_even_degree heven with ⟨cycles, hD⟩
+  rcases hD.exists_cycle_of_mem_edgeFinset he with ⟨c, _hc, hec, u, p, hp, rfl⟩
+  exact ⟨u, p, hp, hec⟩
 
 /-- In a finite graph in which every vertex has even degree, no edge is a bridge. -/
 theorem not_isBridge_of_adj_of_forall_even_degree [Finite V] [∀ x : V, Fintype (G.neighborSet x)]
